@@ -1,0 +1,16 @@
+# Binary executables
+mandelbrot_bench
+build/
+
+# Python virtual environment & cache
+.venv/
+__pycache__/
+*.pyc
+
+# Large raw image buffer (PNG is committed instead)
+output/mandelbrot.ppm
+
+# OS / Editor files
+.DS_Store
+.vscode/
+.idea/

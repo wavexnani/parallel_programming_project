@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parallel Mandelbrot Engine & Multi-Core Visualizer</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Fullscreen Interactive Fractal Canvas -->
+  <div id="canvas-container">
+    <canvas id="mandelbrotCanvas"></canvas>
+  </div>
+
+  <!-- Top-Left Navigation / Title & Telemetry Header -->
+  <header class="glass-panel header-bar">
+    <div class="brand">
+      <div class="logo-dot"></div>
+      <div>
+        <h1>PARALLEL MANDELBROT VISUALIZER</h1>
+        <p class="subtitle">Concurrent Multi-Core Simulation & Real-Time Scheduling Engine</p>
+      </div>
+    </div>
+
+    <div class="quick-telemetry">
+      <div class="chip">
+        <span class="chip-label">Zoom:</span>
+        <span class="chip-val" id="zoomVal">1.0x</span>
+      </div>
+      <div class="chip">
+        <span class="chip-label">Time:</span>
+        <span class="chip-val" id="timeVal">0 ms</span>
+      </div>
+      <div class="chip">
+        <span class="chip-label">FPS:</span>
+        <span class="chip-val" id="fpsVal">60</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Left Interactive Control Panel (Floating Glass Dock) -->
+  <aside class="glass-panel control-sidebar">
+    <div class="panel-section-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M4.93 19.07 19.07 4.93"/></svg>
+      PARALLEL CONFIGURATION
+    </div>
+
+    <!-- Cores / Threads Selector -->
+    <div class="control-group">
+      <label for="coresSelect">
+        <span>Number of Cores:</span>
+        <span class="badge" id="coresBadge">8 Cores</span>
+      </label>
+      <div class="btn-grid-cores">
+        <button class="core-btn" data-cores="1">1</button>
+        <button class="core-btn" data-cores="2">2</button>
+        <button class="core-btn" data-cores="4">4</button>
+        <button class="core-btn active" data-cores="8">8</button>
+        <button class="core-btn" data-cores="12">12</button>
+        <button class="core-btn" data-cores="16">16</button>
+      </div>
+    </div>
+
+    <!-- Scheduling Mode (Static vs Dynamic) -->
+    <div class="control-group">
+      <label>Scheduling Policy:</label>
+      <div class="segmented-control">
+        <button class="seg-btn" id="modeStaticBtn" data-mode="static">
+          <span>Static Chunking</span>
+        </button>
+        <button class="seg-btn active" id="modeDynamicBtn" data-mode="dynamic">
+          <span>Dynamic Balancing</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Chunk Size (For Dynamic) -->
+    <div class="control-group" id="chunkSizeGroup">
+      <label for="chunkSizeSelect">
+        <span>Chunk Size (rows/task):</span>
+        <span class="badge" id="chunkBadge">4 rows</span>
+      </label>
+      <select id="chunkSizeSelect" class="styled-select">
+        <option value="1">1 row (Fine granularity)</option>
+        <option value="2">2 rows</option>
+        <option value="4" selected>4 rows (Recommended)</option>
+        <option value="8">8 rows</option>
+        <option value="16">16 rows (Coarse)</option>
+      </select>
+    </div>
+
+    <!-- Color Theme Selector -->
+    <div class="control-group">
+      <label for="themeSelect">Color Theme:</label>
+      <select id="themeSelect" class="styled-select">
+        <option value="purple" selected>🔮 Royal Amethyst & Pearl</option>
+        <option value="quanta">🌊 Quanta Turquoise & Gold</option>
+        <option value="electric">⚡ Classic Electric Blue</option>
+        <option value="sunset">🔥 Cosmic Sunset</option>
+        <option value="emerald">🌿 Cyber Emerald</option>
+        <option value="grayscale">⚪ Monochrome High-Contrast</option>
+      </select>
+    </div>
+
+    <!-- View Mode: Fractal vs Core Map -->
+    <div class="control-group">
+      <label>Visualization View:</label>
+      <div class="segmented-control">
+        <button class="seg-btn active" id="viewFractalBtn" data-view="fractal">
+          <span>Fractal Theme</span>
+        </button>
+        <button class="seg-btn" id="viewThreadMapBtn" data-view="threads">
+          <span>🧵 Core Allocation Map</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Calculation Trigger Buttons -->
+    <div class="action-buttons">
+      <button class="action-btn primary" id="runCalcBtn">
+        <span class="icon">▶</span>
+        <span>Watch Calculation</span>
+      </button>
+      <button class="action-btn secondary" id="instantRenderBtn">
+        <span>⚡ Instant Render</span>
+      </button>
+    </div>
+
+    <!-- Simulation Speed Slider -->
+    <div class="control-group">
+      <label for="calcSpeedRange">
+        <span>Calculation Animation Speed:</span>
+        <span class="badge" id="speedBadge">Smooth</span>
+      </label>
+      <input type="range" id="calcSpeedRange" min="1" max="5" value="3" class="styled-range">
+    </div>
+
+    <!-- Core Workload Telemetry Distribution -->
+    <div class="panel-section-title" style="margin-top: 15px;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      CORE LOAD DISTRIBUTION
+    </div>
+
+    <div class="core-meter-container" id="coreMeters">
+      <!-- Generated dynamically based on core count -->
+    </div>
+
+    <div class="metrics-row">
+      <div class="metric-box">
+        <div class="m-label">Speedup:</div>
+        <div class="m-val" id="metricSpeedup">1.00x</div>
+      </div>
+      <div class="metric-box">
+        <div class="m-label">Efficiency:</div>
+        <div class="m-val" id="metricEfficiency">100%</div>
+      </div>
+      <div class="metric-box">
+        <div class="m-label">Imbalance:</div>
+        <div class="m-val" id="metricImbalance">1.00x</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Top-Right Live Color & Pixel Inspector HUD -->
+  <aside class="glass-panel inspector-card" id="inspectorCard">
+    <div class="inspector-header">
+      <div class="title-with-icon">
+        <div class="pulse-indicator"></div>
+        <span>LIVE PIXEL INSPECTOR</span>
+      </div>
+      <span class="status-pill escaped" id="statusPill">Escaped</span>
+    </div>
+
+    <div class="swatch-row">
+      <div class="swatch-preview" id="colorSwatch"></div>
+      <div class="swatch-details">
+        <div class="color-code hex" id="hexCode" title="Click to copy HEX">#000000</div>
+        <div class="color-code rgb" id="rgbCode">rgb(0, 0, 0)</div>
+        <div class="color-code hsl" id="hslCode">hsl(0, 0%, 0%)</div>
+      </div>
+    </div>
+
+    <div class="inspector-meta-grid">
+      <div class="meta-item">
+        <span class="meta-label">Iterations</span>
+        <span class="meta-value" id="iterVal">0 / 1000</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Pixel (X, Y)</span>
+        <span class="meta-value" id="pixelVal">0, 0</span>
+      </div>
+      <div class="meta-item full-width">
+        <span class="meta-label">Assigned Core</span>
+        <span class="meta-value core-id-text" id="coreOwnerVal">Core #0</span>
+      </div>
+    </div>
+
+    <div class="complex-coord-box">
+      <div class="coord-item">
+        <span class="c-tag">Re(c):</span>
+        <span class="c-val" id="realCoord">0.000000000000</span>
+      </div>
+      <div class="coord-item">
+        <span class="c-tag">Im(c):</span>
+        <span class="c-val" id="imagCoord">0.000000000000</span>
+      </div>
+    </div>
+
+    <button class="ppm-btn" id="viewPpmBtn" title="Inspect C++ Generated PPM Image">
+      📁 View C++ Rendered mandelbrot.png
+    </button>
+  </aside>
+
+  <!-- Bottom Navigation / Video & Exploration Toolbar -->
+  <nav class="glass-panel bottom-toolbar">
+    <button class="tool-btn primary" id="autoZoomBtn">
+      <span id="playIcon">▶</span>
+      <span id="playLabel">Auto-Zoom (Video Mode)</span>
+    </button>
+    <button class="tool-btn" id="zoomInBtn" title="Zoom In (+)">+</button>
+    <button class="tool-btn" id="zoomOutBtn" title="Zoom Out (−)">−</button>
+    <button class="tool-btn" id="resetBtn" title="Reset View">↺ Reset View</button>
+
+    <div class="divider"></div>
+
+    <select id="presetSelect" class="styled-select preset-dropdown" title="Famous Fractal Coordinates">
+      <option value="full">Default (Full Set View)</option>
+      <option value="seahorse" selected>Seahorse Valley (Deep Spiral)</option>
+      <option value="elephant">Elephant Valley</option>
+      <option value="quad">Quad-Spiral Center</option>
+      <option value="minibrot">Mini-Brot Satellite</option>
+      <option value="triple">Triple Spiral Galaxy</option>
+    </select>
+  </nav>
+
+  <!-- Modal for Viewing the C++ Generated mandelbrot.png -->
+  <div class="modal-backdrop" id="ppmModal">
+    <div class="glass-panel modal-content">
+      <div class="modal-header">
+        <h3>C++ Engine Output (output/mandelbrot.png)</h3>
+        <button class="close-btn" id="closeModalBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Rendered directly by <code>./mandelbrot_bench</code> (OpenMP dynamic schedule) and converted from <code>output/mandelbrot.ppm</code>.</p>
+        <div class="modal-img-wrap">
+          <img src="../output/mandelbrot.png" alt="Rendered Mandelbrot PPM" id="modalImg">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification for Copying -->
+  <div class="toast" id="toast">Copied HEX Code to Clipboard!</div>
+
+  <script src="app.js"></script>
+</body>
+</html>
